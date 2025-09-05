@@ -19,3 +19,8 @@ class SupportedExtensionsEnum(StrEnum):
     WAV = ".wav"
     WEBM = ".webm"
     OGG = ".ogg"
+
+
+class GeminiModelsEnum(StrEnum):
+    gemini_2_5_flash "gemini-2.5-flash"
+    ...

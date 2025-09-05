@@ -1,5 +1,5 @@
 import whisper
-from utilities.consts import WhisperModelsENUM, SupportedLanguagesCodesEnum, SupportedExtensionsEnum
+from app.backend.utilities.consts import WhisperModelsENUM, SupportedLanguagesCodesEnum, SupportedExtensionsEnum
 
 class AudioToText:
     def __init__(self,
