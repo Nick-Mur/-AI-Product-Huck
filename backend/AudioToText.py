@@ -19,16 +19,16 @@ class AudioToText:
         if audio_file_content:
             self.audio_content = audio_file_content
         else:
-            self.audio_content = self._get_audio_file_content(audio_file_path)
+            self.audio_content = self._get_audio_file_content()
 
         self.whisper = whisper.load_model(self.whisper_model)
 
     def transcribe_file(self):
         return self.whisper.transcribe(f=self.audio_content, language=self.language)
 
-    def _get_audio_file_content(self, audio_file_path):
+    def _get_audio_file_content(self):
         try:
-            with open(audio_file_path, 'rb') as f:
+            with open(self.audio_file_path, 'rb') as f:
                 return f.read()
         except Exception as e:
             raise ValueError(f"Error reading audio file: {e}")
