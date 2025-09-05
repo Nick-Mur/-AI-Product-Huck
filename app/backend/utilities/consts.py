@@ -1,4 +1,9 @@
 from enum import StrEnum
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
 
 
 class WhisperModelsENUM(StrEnum):
@@ -22,5 +27,8 @@ class SupportedExtensionsEnum(StrEnum):
 
 
 class GeminiModelsEnum(StrEnum):
-    gemini_2_5_flash "gemini-2.5-flash"
-    ...
+    gemini_2_5_flash = "gemini-2.5-flash"
+
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
