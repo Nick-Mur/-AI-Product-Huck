@@ -19,10 +19,15 @@ function App() {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const recordingSlideIndexRef = useRef(null); // 1-based slide number for current recording
+  const navBusyRef = useRef(false); // guard against fast double clicks
   const [slideDurations, setSlideDurations] = useState([]); // completed slides [{index, seconds}]
   const [currentSlideSeconds, setCurrentSlideSeconds] = useState(0);
   const [analysisMode, setAnalysisMode] = useState(null); // 'per-slide' | 'full'
   const [audioMap, setAudioMap] = useState({}); // { [index]: path }
+  const [transcripts, setTranscripts] = useState({}); // { [index]: { open, loading, text, error } }
+  const [extraInfo, setExtraInfo] = useState('');
+  const [slideAI, setSlideAI] = useState({}); // { [index]: { loading, feedback, tips[], error } }
+  const [summaryAI, setSummaryAI] = useState({ loading: false, feedback: null, tips: null, error: null });
   const [showSlideReportModal, setShowSlideReportModal] = useState(false);
   const [modalReport, setModalReport] = useState(null); // {index, seconds, audioPath}
   const pendingNextIndexRef = useRef(null);
@@ -121,9 +126,55 @@ function App() {
     // per-slide отчёты отображаются модально, отдельный список не ведём
     // Show summary instead of resetting everything immediately
     setView('summary');
+    // When entering summary, fetch AI summary
+    fetchSummary();
+  };
+
+  const startReview = async (mode) => {
+    if (!sessionId) return;
+    try {
+      const fd = new FormData();
+      fd.append('sessionId', sessionId);
+      fd.append('mode', mode || 'per-slide');
+      fd.append('extraInfo', extraInfo || '');
+      await axios.post(`/review/start`, fd);
+    } catch (e) {
+      console.warn('Не удалось инициализировать рецензию', e);
+    }
+  };
+
+  const fetchSlideReview = async (index) => {
+    if (!sessionId) return;
+    setSlideAI((m) => ({ ...m, [index]: { ...(m[index] || {}), loading: true, error: null } }));
+    try {
+      const fd = new FormData();
+      fd.append('sessionId', sessionId);
+      fd.append('slideIndex', String(index));
+      const { data } = await axios.post(`/review/slide`, fd);
+      const feedback = data?.feedback || '';
+      const tips = Array.isArray(data?.tips) ? data.tips : [];
+      setSlideAI((m) => ({ ...m, [index]: { loading: false, feedback, tips, error: null } }));
+    } catch (e) {
+      setSlideAI((m) => ({ ...m, [index]: { loading: false, feedback: '', tips: [], error: e?.response?.data?.detail || 'Ошибка запроса' } }));
+    }
+  };
+
+  const fetchSummary = async () => {
+    if (!sessionId) return;
+    setSummaryAI({ loading: true, feedback: null, tips: null, error: null });
+    try {
+      const { data } = await axios.get(`/review/summary`, { params: { sessionId } });
+      const feedback = data?.feedback || '';
+      const tips = Array.isArray(data?.tips) ? data.tips : [];
+      setSummaryAI({ loading: false, feedback, tips, error: null });
+    } catch (e) {
+      setSummaryAI({ loading: false, feedback: null, tips: null, error: e?.response?.data?.detail || 'Ошибка запроса' });
+    }
   };
 
   const finalizeCurrentSlideAndRecord = async (newIndex) => {
+    if (navBusyRef.current) return;
+    navBusyRef.current = true;
     // finalize duration for current slide
     const currentOneBased = currentIndex + 1;
     const duration = currentSlideSeconds;
@@ -135,26 +186,45 @@ function App() {
       });
     }
     setCurrentSlideSeconds(0);
-    // stop and upload current recording, then start for the new slide
-    const audioPath = await stopAndUploadRecording();
-    if (audioPath) {
-      setAudioMap((m) => ({ ...m, [currentOneBased]: audioPath }));
-    }
+    // stop and upload current recording asynchronously, don't block navigation
+    // mark audio as pending to reflect status in UI
+    setAudioMap((m) => ({ ...m, [currentOneBased]: m[currentOneBased] || 'pending' }));
+    const uploadPromise = stopAndUploadRecording();
+    Promise.resolve(uploadPromise)
+      .then((audioPath) => {
+        if (audioPath) {
+          setAudioMap((m) => ({ ...m, [currentOneBased]: audioPath }));
+          // trigger AI slide review after audio is ready
+          if (analysisMode === 'per-slide') {
+            fetchSlideReview(currentOneBased);
+          }
+        } else {
+          // keep as pending until user retries or it is unavailable
+          setAudioMap((m) => ({ ...m, [currentOneBased]: m[currentOneBased] === 'pending' ? null : m[currentOneBased] }));
+        }
+      })
+      .catch(() => {
+        setAudioMap((m) => ({ ...m, [currentOneBased]: null }));
+      });
     if (analysisMode === 'per-slide') {
       // пауза и показ модального отчёта по слайду
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      setModalReport({ index: currentOneBased, seconds: duration, audioPath: audioPath || null });
+      setModalReport({ index: currentOneBased, seconds: duration });
       setShowSlideReportModal(true);
       pendingNextIndexRef.current = newIndex;
+      // запрос рецензии запустится, когда аудио сохранится (см. выше)
     }
     // Switch slide in background (no recording until resume)
     setCurrentIndex(newIndex);
     if (analysisMode !== 'per-slide') {
-      startRecording(newIndex + 1);
+      // give recorder a short moment to stop and release
+      setTimeout(() => startRecording(newIndex + 1), 50);
     }
+    // allow subsequent navigation
+    navBusyRef.current = false;
   };
 
   const nextSlide = async () => {
@@ -296,9 +366,47 @@ function App() {
       else if (mime.includes('mp4') || mime.includes('aac')) ext = 'm4a';
       fd.append('file', blob, `slide-${slideOneBased}.${ext}`);
       const { data } = await axios.post(`/audio`, fd);
+      // Preload transcript state entry as closed; actual fetch on demand
+      try {
+        if (data && slideOneBased) {
+          setTranscripts((m) => ({
+            ...m,
+            [slideOneBased]: m[slideOneBased] || { open: false, loading: false, text: null, error: null },
+          }));
+        }
+      } catch (_) { /* noop */ }
       return data?.path || null;
     } catch (e) {
       console.warn('Не удалось отправить аудио', e);
+    }
+  };
+
+  const toggleTranscript = async (idx) => {
+    setTranscripts((m) => {
+      const current = m[idx] || { open: false, loading: false, text: null, error: null };
+      return { ...m, [idx]: { ...current, open: !current.open } };
+    });
+    // If opening and not loaded yet, fetch
+    const entry = transcripts[idx];
+    const willOpen = !(entry && entry.open);
+    if (willOpen) {
+      setTranscripts((m) => ({
+        ...m,
+        [idx]: { ...(m[idx] || {}), open: true, loading: true, error: null },
+      }));
+      try {
+        const { data } = await axios.get(`/transcript`, { params: { sessionId, slideIndex: idx } });
+        const text = (data && (data.polished || data.raw)) || '';
+        setTranscripts((m) => ({
+          ...m,
+          [idx]: { ...(m[idx] || {}), loading: false, text },
+        }));
+      } catch (e) {
+        setTranscripts((m) => ({
+          ...m,
+          [idx]: { ...(m[idx] || {}), loading: false, error: e?.response?.data?.detail || 'Ошибка получения транскрипта' },
+        }));
+      }
     }
   };
 
@@ -314,6 +422,41 @@ function App() {
     }
     // start recording for the now-active slide
     startRecording((idx ?? currentIndex) + 1);
+  };
+
+  const redoSlide = (slideOneBased) => {
+    // Close modal and reset to re-record the requested slide
+    setShowSlideReportModal(false);
+    pendingNextIndexRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    // remove previous duration entries for this slide
+    setSlideDurations((arr) => arr.filter((d) => d.index !== slideOneBased));
+    // clear previous AI/transcript/audio for the slide
+    setTranscripts((m) => { const n = { ...m }; delete n[slideOneBased]; return n; });
+    setSlideAI((m) => { const n = { ...m }; delete n[slideOneBased]; return n; });
+    setAudioMap((m) => ({ ...m, [slideOneBased]: 'pending' }));
+    // jump back to that slide and start recording anew
+    setView('presenting');
+    setCurrentIndex(slideOneBased - 1);
+    setCurrentSlideSeconds(0);
+    timerRef.current = setInterval(() => setCurrentSlideSeconds((s) => s + 1), 1000);
+    setTimeout(() => startRecording(slideOneBased), 50);
+  };
+
+  const redoPresentation = async () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    // reset state, keep session and slides
+    setSlideDurations([]);
+    setAudioMap({});
+    setTranscripts({});
+    setSlideAI({});
+    setSummaryAI({ loading: false, feedback: null, tips: null, error: null });
+    setCurrentIndex(0);
+    setCurrentSlideSeconds(0);
+    // restart same analysis mode
+    await startReview(analysisMode || 'per-slide');
+    startPresentation();
   };
 
   return (
@@ -349,27 +492,20 @@ function App() {
       {view === 'ready' && (
         <div style={{ textAlign: 'center' }}>
           <p className="muted">Файл загружен. Слайдов: {slides.length}</p>
-          <div className="row" style={{ marginBottom: 12 }}>
-            <button className="btn" onClick={checkMic}>Проверить микрофон</button>
-            {micStatus === 'ok' && <span className="badge" style={{ color: '#16a34a' }}>Микрофон готов</span>}
-            {micStatus === 'denied' && <span className="badge" style={{ color: '#dc2626' }}>Доступ запрещен</span>}
-            {micStatus === 'not-found' && <span className="badge" style={{ color: '#dc2626' }}>Микрофон не найден</span>}
-            {micStatus === 'error' && <span className="badge" style={{ color: '#ea580c' }}>Ошибка микрофона</span>}
+          <div className="row" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <label className="badge" style={{ alignSelf: 'flex-start' }}>Дополнительная информация по презентации</label>
+            <textarea
+              className="file-input"
+              style={{ width: '100%', maxWidth: 720, minHeight: 90 }}
+              placeholder="Цель, аудитория, контекст, что важно подчеркнуть..."
+              value={extraInfo}
+              onChange={(e) => setExtraInfo(e.target.value)}
+            />
           </div>
-          {micDevices.length > 0 && (
-            <div className="row" style={{ marginBottom: 12 }}>
-              <label className="badge">Устройство:</label>
-              <select className="btn" value={selectedMicId} onChange={(e) => { setSelectedMicId(e.target.value); mediaStreamRef.current = null; }}>
-                {micDevices.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || `Микрофон ${d.deviceId.slice(0,6)}`}</option>
-                ))}
-              </select>
-            </div>
-          )}
           <div className="row">
             <button className="btn" onClick={() => setView('upload')}>Поменять файл</button>
-            <button className="btn btn-primary" onClick={() => { setAnalysisMode('per-slide'); startPresentation(); }}>Разобрать по слайдам</button>
-            <button className="btn" onClick={() => { setAnalysisMode('full'); startPresentation(); }}>Разобрать целиком</button>
+            <button className="btn btn-primary" onClick={async () => { setAnalysisMode('per-slide'); await startReview('per-slide'); startPresentation(); }}>Разобрать по слайдам</button>
+            <button className="btn" onClick={async () => { setAnalysisMode('full'); await startReview('full'); startPresentation(); }}>Разобрать целиком</button>
           </div>
         </div>
       )}
@@ -401,8 +537,8 @@ function App() {
           {/* per-slide inline reports removed; shown as modal instead */}
 
           <div className="panel">
-            {slideDurations.map((d) => (
-              <div key={d.index}>{`Слайд ${d.index} - ${formatTime(d.seconds)}`}</div>
+            {slideDurations.map((d, i) => (
+              <div key={`dur-${d.index}-${i}`}>{`Слайд ${d.index} - ${formatTime(d.seconds)}`}</div>
             ))}
             <div>{`Слайд ${currentIndex + 1} - ${formatTime(currentSlideSeconds)}`}</div>
           </div>
@@ -415,16 +551,36 @@ function App() {
             <h3 className="modal-title">{`Отчет по слайду ${modalReport.index}`}</h3>
             <div className="card">
               <div style={{ marginBottom: 8 }}>Время: {formatTime(modalReport.seconds)}</div>
-              {modalReport.audioPath ? (
+              {audioMap[modalReport.index] === 'pending' && (
+                <div className="muted">Аудио обрабатывается…</div>
+              )}
+              {audioMap[modalReport.index] && audioMap[modalReport.index] !== 'pending' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div className="muted">Аудио:</div>
-                  <audio controls preload="none" src={`${modalReport.audioPath}`}></audio>
+                  <audio controls preload="none" src={`${audioMap[modalReport.index]}`}></audio>
                 </div>
-              ) : (
+              ) : null}
+              {!audioMap[modalReport.index] && audioMap[modalReport.index] !== 'pending' && (
                 <div className="muted">Аудио: недоступно</div>
               )}
+              <div style={{ marginTop: 8 }}>
+                <div className="muted">AI-оценка:</div>
+                {slideAI[modalReport.index]?.loading && <div className="muted">Загрузка...</div>}
+                {slideAI[modalReport.index]?.error && <div className="muted" style={{ color: '#dc2626' }}>{slideAI[modalReport.index].error}</div>}
+                {(!slideAI[modalReport.index]?.loading && !slideAI[modalReport.index]?.error) && (
+                  <div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{slideAI[modalReport.index]?.feedback || '—'}</div>
+                    {(slideAI[modalReport.index]?.tips || []).length > 0 && (
+                      <ul style={{ marginTop: 6 }}>
+                        {(slideAI[modalReport.index].tips).map((t, i) => (<li key={`tip-${modalReport.index}-${i}`}>{t}</li>))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={() => redoSlide(modalReport.index)}>Перезаписать</button>
               <button className="btn btn-primary" onClick={handleContinueAfterReport}>Продолжить</button>
             </div>
           </div>
@@ -436,14 +592,47 @@ function App() {
           <div className="modal-card">
             <h3 className="modal-title">Отчет о презентации</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {slideDurations.map((d) => (
-                <div key={`sum-${d.index}`} className="card">
+              <div className="card">
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>AI — Итоговая оценка</div>
+                {summaryAI.loading && <div className="muted">Загрузка...</div>}
+                {summaryAI.error && <div className="muted" style={{ color: '#dc2626' }}>{summaryAI.error}</div>}
+                {(!summaryAI.loading && !summaryAI.error) && (
+                  <div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{summaryAI.feedback || '—'}</div>
+                    {Array.isArray(summaryAI.tips) && summaryAI.tips.length > 0 && (
+                      <ul style={{ marginTop: 6 }}>
+                        {summaryAI.tips.map((t, i) => (<li key={`sumtip-${i}`}>{t}</li>))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+              {slideDurations.map((d, i) => (
+                <div key={`sum-${d.index}-${i}`} className="card">
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>Слайд {d.index}</div>
                   <div>Время: {formatTime(d.seconds)}</div>
-                  {audioMap[d.index] ? (
+                  {audioMap[d.index] === 'pending' ? (
+                    <div className="muted">Аудио обрабатывается…</div>
+                  ) : audioMap[d.index] ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div className="muted">Аудио:</div>
                       <audio controls preload="none" src={`${audioMap[d.index]}`}></audio>
+                      <div>
+                        <button className="btn" onClick={() => toggleTranscript(d.index)}>
+                          {transcripts[d.index]?.open ? 'Скрыть транскрипт' : 'Показать транскрипт'}
+                        </button>
+                      </div>
+                      {transcripts[d.index]?.open && (
+                        <div className="card" style={{ background: '#fafafa' }}>
+                          {transcripts[d.index]?.loading && <div className="muted">Загрузка...</div>}
+                          {transcripts[d.index]?.error && <div className="muted" style={{ color: '#dc2626' }}>{transcripts[d.index].error}</div>}
+                          {(!transcripts[d.index]?.loading && !transcripts[d.index]?.error) && (
+                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                              {transcripts[d.index]?.text || 'Текст недоступен'}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="muted">Аудио: недоступно</div>
@@ -453,6 +642,7 @@ function App() {
             </div>
             <div className="modal-footer">
               <button className="btn" onClick={() => setView('ready')}>Закрыть</button>
+              <button className="btn" onClick={redoPresentation}>Перезаписать</button>
               <button className="btn btn-primary" onClick={() => {
                 if (timerRef.current) clearInterval(timerRef.current);
                 if (countdownRef.current) clearInterval(countdownRef.current);
@@ -466,6 +656,8 @@ function App() {
                 setCurrentSlideSeconds(0);
                 setAnalysisMode(null);
                 setAudioMap({});
+                setSlideAI({});
+                setSummaryAI({ loading: false, feedback: null, tips: null, error: null });
               }}>Новая презентация</button>
             </div>
           </div>

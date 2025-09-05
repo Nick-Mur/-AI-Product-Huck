@@ -1,36 +1,54 @@
-# React Slides (PDF/PPTX → PNG)
+# AI Slides Reviewer (PDF/PPTX → PNG + Audio → Text → Gemini)
 
-Проект в docker-compose из двух контейнеров (frontend + api) с React UI и Python FastAPI бэкендом:
+Проект состоит из двух контейнеров (frontend + server): React UI и FastAPI backend. Позволяет загрузить презентацию, вести прогон с записью аудио по каждому слайду, автоматически расшифровать речь (Whisper), улучшить текст (Gemini), получить AI‑оценку каждого слайда и итог всей презентации.
 
-- Загрузка `.pdf` / `.pptx` / `.ppt`.
-- Конвертация PPT/PPTX → PDF (LibreOffice), затем PDF → PNG (Poppler `pdftoppm`).
-- Интерфейс: «Начать» / «Поменять файл», отсчёт 3…2…1, показ слайдов (стрелки ← →), таймер и «Завершить».
+Основные возможности
+- Загрузка `.pdf` или `.pptx`.
+- Конвертация PPTX → PDF (LibreOffice) → PNG (Poppler/pdf2image).
+- Прогон с отсчётом и записью аудио по каждому слайду, навигация стрелками.
+- Автотранскрибация (Whisper) + улучшение пунктуации/регистра (Gemini).
+- Отчёт по слайду: аудио, транскрипт, AI‑фидбек и до 3 подсказок.
+- Итоговый обзор: аудио по каждому слайду, полный фидбек от AI и до 5 подсказок.
 
-## Сервисы
+Сервисы
+- `frontend` (CRA dev server, HTTPS): работает на `3000`, проксирует API на `server:5000` (см. `frontend/package.json` → `proxy`).
+- `server` (FastAPI + Uvicorn): работает на `5000`, статически раздаёт изображения и аудио по `/images/...`.
 
-- `frontend` (Nginx): раздаёт собранный React (`client/dist`), проксирует `/api` на бекенд.
-- `api` (FastAPI): принимает загрузку `/api/upload`, выполняет конвертацию и раздаёт PNG `/api/slides/...`.
+Быстрый старт
+1. Создайте `.env` в корне (см. ниже). Пример:
+   - `GOOGLE_API_KEY=...`
+   - `AnalizePDF=true`  # опционально: прикладывать исходный PDF к запросам в Gemini
+2. Соберите и запустите: `docker-compose up --build`
+3. Откройте: `http://localhost:3000`
 
-## Быстрый старт
+Переменные окружения
+- `GOOGLE_API_KEY` — API‑ключ Google для `google-genai` (Gemini).
+- `AnalizePDF` — если `true/1/yes`, при старте оценки презентации сервер загружает PDF в Gemini и прикладывает его ко всем запросам (даёт дополнительный контекст).
 
-1. Собрать и запустить: `docker-compose up --build`
-2. Открыть: `http://localhost:3000`
+API (основные маршруты)
+- `POST /upload` — загрузка `.pdf`/`.pptx`; ответ: `{ sessionId, slides: ["/images/<sessionId>/slides/slide-1.png", ...] }`.
+- `GET /slides/{session_id}` — список PNG‑слайдов.
+- `POST /audio` — загрузка аудио для слайда; конвертирует в mp3, запускает транскрибацию и улучшение, сохраняет JSON с текстом.
+- `GET /transcript?sessionId&slideIndex` — получение транскрипта (если нет — создаёт on‑demand).
+- `POST /review/start` — старт рецензии (mode: `per-slide`|`full`, extraInfo: произвольный текст).
+- `POST /review/slide` — AI‑оценка одного слайда; JSON: `{ feedback, tips[] }`.
+- `GET /review/summary?sessionId` — итог по всей презентации; JSON: `{ feedback, tips[] }`.
 
-## Локальная разработка без Docker
+Технологии и зависимости (server)
+- FastAPI, Uvicorn, pdf2image (Poppler), LibreOffice (soffice) для PPTX→PDF, ffmpeg для аудио, Whisper (openai-whisper), Google GenAI (Gemini).
+- В Dockerfile устанавливаются `libreoffice`, `poppler-utils`, `ffmpeg` и необходимые шрифты.
 
-- Фронтенд: `cd client && npm i && npm run dev` (Vite на 5173). Прокси на API уже настроен в `client/vite.config.js` (`/api` → `localhost:3000`).
-- Бэкенд: 
-  - Установить зависимости: `pip install -r server/requirements.txt`.
-  - Запустить: `uvicorn server.main:app --reload --port 3000`.
+Данные
+- Все сессионные артефакты пишутся в `server/data/<sessionId>` и пробрасываются через volume `server_data`.
+  - `slides/slide-*.png` — изображения слайдов
+  - `audio/slide-*.mp3` — аудио
+  - `audio/slide-*.json` — транскрипт (+ улучшенный текст)
+  - `review/*.json` — результаты AI‑оценок
 
-## Конвертация и данные
+Разработка локально (опционально)
+- Фронтенд: `cd frontend && npm i && npm start` (CRA на 3000, HTTPS). Прокси на API уже прописан.
+- Бэкенд: `cd server && pip install -r requirements.txt && uvicorn app:app --reload --host 0.0.0.0 --port 5000`.
 
-- Конвертация выполняется в контейнере `api` с помощью LibreOffice (`soffice`) и Poppler (`pdftoppm`).
-- PNG сохраняются в volume `slides_data` в `/data`.
-- Ограничение размера файла: 100 МБ.
-
-## Структура
-
-- `client/` — React/Vite, Dockerfile для Nginx-образа (`client/Dockerfile`), конфиг прокси `client/nginx.conf`.
-- `server/` — FastAPI, Dockerfile для API (`server/Dockerfile`).
-- `docker-compose.yml` — два сервиса: `frontend` и `api`.
+Примечания
+- Для CPU‑окружений Whisper запускается в FP32 (предупреждение FP16 подавлено).
+- Если оценка слайда уезжает раньше сохранения аудио, сервер ждёт появление файла до ~10 секунд.

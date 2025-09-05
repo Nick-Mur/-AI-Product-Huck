@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+frontend/node_modules
+**/node_modules
 /.pnp
 .pnp.js
 
@@ -9,14 +11,30 @@
 /coverage
 
 # production
-/build
+/**/build
+frontend/build
 
 # misc
 .DS_Store
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+server/.venv/
+
+# App data
+server/data/
+server/*.log
+*.log
 
 npm-debug.log*
 yarn-debug.log*

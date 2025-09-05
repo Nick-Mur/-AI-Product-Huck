@@ -8,14 +8,18 @@ WORKDIR /app
 
 # Use HTTPS mirrors and add retries to make apt more reliable
 RUN set -eux; \
-    apt-get -o Acquire::Retries=5 update; \
     sed -i 's|http://|https://|g' /etc/apt/sources.list || true; \
-    sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources || true; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources; fi; \
     apt-get -o Acquire::Retries=5 update; \
     apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
         ca-certificates \
         poppler-utils \
-        ffmpeg; \
+        ffmpeg \
+        libreoffice \
+        fonts-dejavu \
+        fonts-noto-core \
+        fonts-noto-cjk \
+        fonts-noto-color-emoji; \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
