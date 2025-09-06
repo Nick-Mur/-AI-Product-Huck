@@ -15,12 +15,15 @@ from AskGemini import AskGemini
 
 
 class AudioToText:
+    """
+    Класс для транскрибации аудио
+    """
     def __init__(self,
-                 audio_file_content=None,
-                 audio_file_path=None,
-                 language=SupportedLanguagesCodesEnum.RU,
-                 whisper_model=WhisperModelsENUM.TINY,
-                 gemini_model=GeminiModelsEnum.gemini_2_5_flash):
+                 audio_file_content: bytes | None = None,
+                 audio_file_path: str | None = None,
+                 language: SupportedLanguagesCodesEnum = SupportedLanguagesCodesEnum.RU,
+                 whisper_model: WhisperModelsENUM = WhisperModelsENUM.TINY,
+                 gemini_model: GeminiModelsEnum = GeminiModelsEnum.gemini_2_5_flash):
 
         self.language = language
 
@@ -61,7 +64,6 @@ class AudioToText:
         gemini = AskGemini(model=self.gemini_model)
         self.transcribed_text = gemini.restore_transcribed_text(transcribed_text=self.transcribed_text, language=self.language)
         return self.transcribed_text
-
 
     def _get_audio_file_content(self):
         try:
