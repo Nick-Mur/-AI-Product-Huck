@@ -1,3 +1,8 @@
+"""
+Модуль транскрибации аудио файла с помощью Whisper.
+Для улучшения качества выходного текста используется дополнительная обработка с помощью Gemini (модуль AskGemini)
+"""
+
 import whisper
 import warnings
 from utilities.consts import (
@@ -8,7 +13,6 @@ from utilities.consts import (
     GOOGLE_API_KEY,
 )
 from AskGemini import AskGemini
-from google import genai
 
 
 class AudioToText:
@@ -25,7 +29,6 @@ class AudioToText:
 
         self.audio_file_path = audio_file_path
 
-        # Store content early so validation can distinguish path vs content flows
         self.audio_content = audio_file_content
 
         self.gemini_model = gemini_model
@@ -33,15 +36,11 @@ class AudioToText:
         self._validate_init()
 
         if self.audio_content is None and self.audio_file_path:
-            # Only load bytes if explicitly needed later; whisper prefers a file path
             self.audio_content = None
 
         self.transcribed_text = self.client = self.whisper = None
 
     def transcribe_file(self):
-        """Transcribe audio and store plain text using Whisper.
-        Prefers file path input for stability/performance.
-        """
 
         if self.whisper is None:
             self.whisper = whisper.load_model(str(self.whisper_model))
