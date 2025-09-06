@@ -3,12 +3,12 @@ from typing import List, Dict, Any, Optional
 
 from google import genai
 
-from utilities.consts import GOOGLE_API_KEY, GeminiModelsEnum
+from utilities.consts import GOOGLE_API_KEY, GeminiModelsEnum, SupportedLanguagesCodesEnum
 
 
 class AskGemini:
     def __init__(self,
-                 system_prompt: str,
+                 system_prompt: str = "",
                  user_context: str = "",
                  model: GeminiModelsEnum = GeminiModelsEnum.gemini_2_5_flash,
                  file_parts: Optional[list] = None):
@@ -113,3 +113,38 @@ class AskGemini:
             tips = []
         tips = [str(t).strip() for t in tips if str(t).strip()][:5]
         return {"feedback": str(data.get("feedback", "")).strip(), "tips": tips}
+
+    def restore_transcribed_text(self,
+                                 transcribed_text: str,
+                                 gemini_model: GeminiModelsEnum | None = None,
+                                 language: SupportedLanguagesCodesEnum = SupportedLanguagesCodesEnum.RU):
+        """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text."""
+
+        if self.client is None:
+            if not GOOGLE_API_KEY:
+                raise ValueError("GOOGLE_API_KEY is not set in environment")
+            self.client = genai.Client(api_key=GOOGLE_API_KEY)
+
+        if not transcribed_text:
+            raise ValueError("Transcribed text is empty.")
+
+        instruction = (
+            "Ты помощник по восстановлению пунктуации и регистра в тексте, полученном из распознавания речи. "
+            "Поправь пунктуацию, регистр, явные опечатки, разбей на абзацы. Ничего не добавляй и не сокращай. "
+            f"Сохрани исходный язык: {language}. Верни только исправленный текст."
+        )
+        gemini_model = self.model if self.model else gemini_model
+        response = self.client.models.generate_content(
+            model=str(gemini_model),
+            contents=[
+                {"role": "user", "parts": [
+                    {"text": instruction},
+                ]},
+                {"role": "user", "parts": [
+                    {"text": transcribed_text},
+                ]},
+            ],
+        )
+
+        transcribed_text = (response.text or "").strip()
+        return transcribed_text

@@ -7,6 +7,7 @@ from utilities.consts import (
     GeminiModelsEnum,
     GOOGLE_API_KEY,
 )
+from AskGemini import AskGemini
 from google import genai
 
 
@@ -59,33 +60,8 @@ class AudioToText:
     def restore_transcribed_text_with_gemini(self):
         """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text."""
 
-        if self.client is None:
-            if not GOOGLE_API_KEY:
-                raise ValueError("GOOGLE_API_KEY is not set in environment")
-            self.client = genai.Client(api_key=GOOGLE_API_KEY)
-
-        if not self.transcribed_text:
-            raise ValueError("Transcribed text is empty. Run transcribe_file() first.")
-
-        instruction = (
-            "Ты помощник по восстановлению пунктуации и регистра в тексте, полученном из распознавания речи. "
-            "Поправь пунктуацию, регистр, явные опечатки, разбей на абзацы. Ничего не добавляй и не сокращай. "
-            f"Сохрани исходный язык: {self.language}. Верни только исправленный текст."
-        )
-
-        response = self.client.models.generate_content(
-            model=str(self.gemini_model),
-            contents=[
-                {"role": "user", "parts": [
-                    {"text": instruction},
-                ]},
-                {"role": "user", "parts": [
-                    {"text": self.transcribed_text},
-                ]},
-            ],
-        )
-
-        self.transcribed_text = (response.text or "").strip()
+        gemini = AskGemini(model=self.gemini_model)
+        self.transcribed_text = gemini.restore_transcribed_text(transcribed_text=self.transcribed_text, language=self.language)
         return self.transcribed_text
 
 
