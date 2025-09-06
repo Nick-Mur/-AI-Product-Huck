@@ -1,21 +1,26 @@
+import json
 import os
 import shutil
-import uuid
 import subprocess
-from pathlib import Path
-from typing import List, Any
 import time
+import uuid
+from pathlib import Path
+from typing import Any, List
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pdf2image import convert_from_path
 
-from AI.AudioToText import AudioToText
-from utilities.consts import SupportedLanguagesCodesEnum, WhisperModelsENUM, GeminiModelsEnum, ANALIZE_PDF
-from AI.AskGemini import AskGemini
-import json
+from .AI.AskGemini import AskGemini
+from .AI.AudioToText import AudioToText
+from .utilities.consts import (
+    ANALIZE_PDF,
+    GeminiModelsEnum,
+    SupportedLanguagesCodesEnum,
+    WhisperModelsENUM,
+)
 
 BASE_DIR = Path(__file__).parent.resolve()
 DATA_DIR = BASE_DIR / "data"
