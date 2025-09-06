@@ -1,9 +1,9 @@
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from google import genai
 
-from utilities.consts import GOOGLE_API_KEY, GeminiModelsEnum, SupportedLanguagesCodesEnum
+from ..utilities.consts import GOOGLE_API_KEY, GeminiModelsEnum, SupportedLanguagesCodesEnum
 
 
 class AskGemini:
@@ -118,7 +118,9 @@ class AskGemini:
                                  transcribed_text: str,
                                  gemini_model: GeminiModelsEnum | None = None,
                                  language: SupportedLanguagesCodesEnum = SupportedLanguagesCodesEnum.RU):
-        """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text."""
+        """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text.
+        Использует Gemini для улучшения пунктуации, регистра и пробелов в транскрибированном тексте.
+        """
 
         if self.client is None:
             if not GOOGLE_API_KEY:

@@ -1,14 +1,14 @@
-import whisper
 import warnings
-from utilities.consts import (
-    WhisperModelsENUM,
-    SupportedLanguagesCodesEnum,
-    SupportedExtensionsEnum,
+
+import whisper
+
+from .AskGemini import AskGemini
+from ..utilities.consts import (
     GeminiModelsEnum,
-    GOOGLE_API_KEY,
+    SupportedExtensionsEnum,
+    SupportedLanguagesCodesEnum,
+    WhisperModelsENUM,
 )
-from AskGemini import AskGemini
-from google import genai
 
 
 class AudioToText:
@@ -40,7 +40,10 @@ class AudioToText:
 
     def transcribe_file(self):
         """Transcribe audio and store plain text using Whisper.
+        Преобразует аудио в текст и сохраняет его с помощью Whisper.
+
         Prefers file path input for stability/performance.
+        Предпочитает путь к файлу для стабильности и производительности.
         """
 
         if self.whisper is None:
@@ -58,7 +61,9 @@ class AudioToText:
         return self.transcribed_text
 
     def restore_transcribed_text_with_gemini(self):
-        """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text."""
+        """Use Gemini to enhance punctuation, casing, and spacing of the transcribed text.
+        Использует Gemini для улучшения пунктуации, регистра и пробелов в транскрибированном тексте.
+        """
 
         gemini = AskGemini(model=self.gemini_model)
         self.transcribed_text = gemini.restore_transcribed_text(transcribed_text=self.transcribed_text, language=self.language)
@@ -74,8 +79,8 @@ class AudioToText:
 
     def _validate_init(self):
         """Validate initialization parameters.
-         Проверка параметров инициализации.
-         """
+        Проверяет параметры инициализации.
+        """
         try:
             self.language = SupportedLanguagesCodesEnum(self.language)
         except ValueError as exc:
