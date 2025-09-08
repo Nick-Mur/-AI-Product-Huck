@@ -5,12 +5,11 @@
 
 import whisper
 import warnings
-from utilities.consts import (
+from app.server.utilities.consts import (
     WhisperModelsENUM,
     SupportedLanguagesCodesEnum,
     SupportedExtensionsEnum,
     GeminiModelsEnum,
-    GOOGLE_API_KEY,
 )
 from AskGemini import AskGemini
 
