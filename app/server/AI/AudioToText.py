@@ -28,34 +28,48 @@ class AudioToText:
         Настраивает параметры транскрибации аудио.
 
         Pipeline:
+
             1. Store initialization parameters.
                Сохраняем параметры инициализации.
+
             2. Validate language, models, and inputs.
                Проверяем язык, модели и входные данные.
+
             3. Prepare placeholders for future processing.
                Подготавливаем переменные-заглушки для дальнейшей обработки.
 
         Args:
-            audio_file_content (bytes | None): In-memory audio data.
+
+            audio_file_content (bytes | None):
+                In-memory audio data.
                 Аудиоданные в памяти.
-            audio_file_path (str | None): Path to the audio file.
+
+            audio_file_path (str | None):
+                Path to the audio file.
                 Путь к аудиофайлу.
-            language (SupportedLanguagesCodesEnum): Target transcription
-                language.
+
+            language (SupportedLanguagesCodesEnum):
+                Target transcription language.
                 Целевой язык транскрибации.
-            whisper_model (WhisperModelsENUM): Selected Whisper model.
+
+            whisper_model (WhisperModelsENUM):
+                Selected Whisper model.
                 Выбранная модель Whisper.
-            gemini_model (GeminiModelsEnum): Gemini model for text
-                restoration.
+
+            gemini_model (GeminiModelsEnum):
+                Gemini model for text restoration.
                 Модель Gemini для восстановления текста.
 
         Returns:
+
             None
             Ничего
 
         Raises:
-            ValueError: If inputs or models are invalid.
-            ValueError: Если входные данные или модели некорректны.
+
+            ValueError:
+                If inputs or models are invalid.
+                Если входные данные или модели некорректны.
         """
 
         # Step 1: Store provided configuration
@@ -85,22 +99,30 @@ class AudioToText:
         Транскрибирует предоставленное аудио с помощью Whisper.
 
         Pipeline:
+
             1. Load the Whisper model if not already loaded.
                Загружаем модель Whisper при необходимости.
+
             2. Determine the audio source (path or in-memory).
                Определяем источник аудио (путь или память).
+
             3. Filter CPU warnings and run transcription.
                Фильтруем предупреждения CPU и запускаем транскрибацию.
+
             4. Extract and store the resulting text.
                Извлекаем и сохраняем полученный текст.
 
         Returns:
-            str: Transcribed text.
-            str: Транскрибированный текст.
+
+            str:
+                Transcribed text.
+                Транскрибированный текст.
 
         Raises:
-            ValueError: If no audio source is available.
-            ValueError: Если отсутствует источник аудио.
+
+            ValueError:
+                If no audio source is available.
+                Если отсутствует источник аудио.
         """
 
         # Step 1: Load Whisper model if needed
@@ -142,16 +164,21 @@ class AudioToText:
         Улучшает текст транскрипции с помощью Gemini.
 
         Pipeline:
+
             1. Initialize Gemini client.
                Инициализируем клиента Gemini.
+
             2. Restore text formatting and punctuation.
                Восстанавливаем форматирование и пунктуацию текста.
+
             3. Return refined transcription.
                Возвращаем улучшенную транскрипцию.
 
         Returns:
-            str: Enhanced transcribed text.
-            str: Улучшенный транскрибированный текст.
+
+            str:
+                Enhanced transcribed text.
+                Улучшенный транскрибированный текст.
         """
 
         # Step 1: Initialize Gemini client
@@ -174,18 +201,24 @@ class AudioToText:
         Считывает содержимое аудиофайла с диска.
 
         Pipeline:
+
             1. Open file in binary mode.
                Открываем файл в бинарном режиме.
+
             2. Read and return bytes.
                Читаем и возвращаем байты.
 
         Returns:
-            bytes: Raw audio data.
-            bytes: Исходные аудиоданные.
+
+            bytes:
+                Raw audio data.
+                Исходные аудиоданные.
 
         Raises:
-            ValueError: If file reading fails.
-            ValueError: Если чтение файла не удалось.
+
+            ValueError:
+                If file reading fails.
+                Если чтение файла не удалось.
         """
 
         # Step 1: Open the file safely
@@ -206,24 +239,32 @@ class AudioToText:
         Проверяет параметры инициализации.
 
         Pipeline:
+
             1. Confirm supported language.
                Подтверждаем поддерживаемый язык.
+
             2. Confirm supported Whisper model.
                Подтверждаем поддерживаемую модель Whisper.
+
             3. Confirm supported Gemini model.
                Подтверждаем поддерживаемую модель Gemini.
+
             4. Ensure audio content or path is provided.
                Убеждаемся в наличии аудиоданных или пути.
+
             5. Validate file extension if path is given.
                Проверяем расширение файла, если указан путь.
 
         Returns:
+
             None
             Ничего
 
         Raises:
-            ValueError: If validation fails.
-            ValueError: Если проверка не проходит.
+
+            ValueError:
+                If validation fails.
+                Если проверка не проходит.
         """
 
         # Step 1: Validate language

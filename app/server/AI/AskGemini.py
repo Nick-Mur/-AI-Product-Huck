@@ -27,26 +27,36 @@ class AskGemini:
         Инициализировать клиент Gemini и контекст.
 
         Pipeline:
-            1. Validate API key.
-            2. Create client and store parameters.
 
-        Pipeline:
-            1. Проверить API ключ.
-            2. Создать клиента и сохранить параметры.
+            1. Validate API key.
+               Проверить API ключ.
+
+            2. Create client and store parameters.
+               Создать клиента и сохранить параметры.
 
         Args:
-            system_prompt (str): Global system instructions.
+
+            system_prompt (str):
+                Global system instructions.
                 Глобальные системные инструкции.
-            user_context (str): Additional user context.
+
+            user_context (str):
+                Additional user context.
                 Дополнительный пользовательский контекст.
-            model (GeminiModelsEnum): Gemini model to use.
+
+            model (GeminiModelsEnum):
+                Gemini model to use.
                 Используемая модель Gemini.
-            file_parts (Optional[list]): List of file descriptors.
+
+            file_parts (Optional[list]):
+                List of file descriptors.
                 Список описаний файлов.
 
         Raises:
-            ValueError: Missing API key.
-                ValueError: Отсутствует API ключ.
+
+            ValueError:
+                Missing API key.
+                Отсутствует API ключ.
         """
 
         # Step 1: Ensure API key is available
@@ -69,26 +79,33 @@ class AskGemini:
         Отправить части запроса модели Gemini.
 
         Pipeline:
-            1. Build request payload.
-            2. Call model and return response.
 
-        Pipeline:
-            1. Сформировать полезную нагрузку.
-            2. Вызвать модель и вернуть ответ.
+            1. Build request payload.
+               Сформировать полезную нагрузку.
+
+            2. Call model and return response.
+               Вызвать модель и вернуть ответ.
 
         Args:
-            role (str): Role of the sender.
+
+            role (str):
+                Role of the sender.
                 Роль отправителя.
-            parts (List[Dict[str, Any]]): Content parts for the model.
+
+            parts (List[Dict[str, Any]]):
+                Content parts for the model.
                 Части контента для модели.
 
         Returns:
-            Any: Response from Gemini.
+            Any:
+                Response from Gemini.
                 Ответ от Gemini.
 
         Raises:
-            Exception: Propagated client errors.
-                Exception: Ошибки клиента пробрасываются.
+
+            Exception:
+                Propagated client errors.
+                Ошибки клиента пробрасываются.
         """
 
         # Step 1: Build payload for the request
@@ -111,25 +128,33 @@ class AskGemini:
         Преобразовать текст в JSON с плавным ухудшением.
 
         Pipeline:
-            1. Use provided fallback if conversion fails.
-            2. Try direct JSON parsing.
-            3. Try extracting JSON block between braces.
-            4. Return fallback on failure.
 
-        Pipeline:
-            1. Использовать запасной вариант при сбое конвертации.
-            2. Попробовать прямой парсинг JSON.
-            3. Попробовать извлечь JSON между фигурными скобками.
-            4. Вернуть запасной вариант при неудаче.
+            1. Use provided fallback if conversion fails.
+               Использовать запасной вариант при сбое конвертации.
+
+            2. Try direct JSON parsing.
+               Попробовать прямой парсинг JSON.
+
+            3. Try extracting JSON block between braces.
+               Попробовать извлечь JSON между фигурными скобками.
+
+            4. Return fallback on failure.
+               Вернуть запасной вариант при неудаче.
 
         Args:
-            text (str): Textual response from Gemini.
+
+            text (str):
+                Textual response from Gemini.
                 Текстовый ответ от Gemini.
-            fallback (Optional[Dict[str, Any]]): Value if parsing fails.
+
+            fallback (Optional[Dict[str, Any]]):
+                Value if parsing fails.
                 Значение при неудачном парсинге.
 
         Returns:
-            Dict[str, Any]: Parsed data or fallback.
+
+            Dict[str, Any]:
+                Parsed data or fallback.
                 Разобранные данные или запасной вариант.
         """
 
@@ -169,30 +194,40 @@ class AskGemini:
         Сгенерировать отзыв для отдельного слайда.
 
         Pipeline:
-            1. Attach optional files.
-            2. Compose prompt with system data and slide text.
-            3. Call Gemini model.
-            4. Parse and normalize response.
 
-        Pipeline:
-            1. Прикрепить необязательные файлы.
-            2. Сформировать запрос из системных данных и текста слайда.
-            3. Вызвать модель Gemini.
-            4. Разобрать и нормализовать ответ.
+            1. Attach optional files.
+               Прикрепить необязательные файлы.
+
+            2. Compose prompt with system data and slide text.
+               Сформировать запрос из системных данных и текста слайда.
+
+            3. Call Gemini model.
+               Вызвать модель Gemini.
+
+            4. Parse and normalize response.
+               Разобрать и нормализовать ответ.
 
         Args:
-            slide_index (int): Position of the slide.
+
+            slide_index (int):
+                Position of the slide.
                 Номер слайда.
-            polished_text (str): Prepared transcription of the slide.
+
+            polished_text (str):
+                Prepared transcription of the slide.
                 Подготовленный текст слайда.
 
         Returns:
-            Dict[str, Any]: Feedback and up to three tips.
+
+            Dict[str, Any]:
+                Feedback and up to three tips.
                 Отзыв и до трёх советов.
 
         Raises:
-            Exception: Propagated Gemini client errors.
-                Exception: Пробрасываемые ошибки клиента Gemini.
+
+            Exception:
+                Propagated Gemini client errors.
+                Пробрасываемые ошибки клиента Gemini.
         """
 
         # Step 1: Attach files if provided
@@ -238,32 +273,43 @@ class AskGemini:
         Сформировать общий обзор презентации.
 
         Pipeline:
-            1. Build snippets from per-slide findings.
-            2. Append optional transcripts.
-            3. Attach files and construct prompt.
-            4. Call Gemini model and parse response.
-            5. Normalize tips length.
 
-        Pipeline:
-            1. Сформировать фрагменты из данных по слайдам.
-            2. Добавить при необходимости транскрипты.
-            3. Прикрепить файлы и составить запрос.
-            4. Вызвать модель Gemini и разобрать ответ.
-            5. Нормализовать длину советов.
+            1. Build snippets from per-slide findings.
+               Сформировать фрагменты из данных по слайдам.
+
+            2. Append optional transcripts.
+               Добавить при необходимости транскрипты.
+
+            3. Attach files and construct prompt.
+               Прикрепить файлы и составить запрос.
+
+            4. Call Gemini model and parse response.
+               Вызвать модель Gemini и разобрать ответ.
+
+            5. Normalize tips length.
+               Нормализовать длину советов.
 
         Args:
-            per_slide_findings (List[Dict[str, Any]]): Results for each slide.
+
+            per_slide_findings (List[Dict[str, Any]]):
+                Results for each slide.
                 Результаты для каждого слайда.
-            transcripts (Optional[List[str]]): Optional slide transcripts.
+
+            transcripts (Optional[List[str]]):
+                Optional slide transcripts.
                 Необязательные транскрипты слайдов.
 
         Returns:
-            Dict[str, Any]: Summary feedback and up to five tips.
+
+            Dict[str, Any]:
+                Summary feedback and up to five tips.
                 Сводный отзыв и до пяти советов.
 
         Raises:
-            Exception: Propagated Gemini client errors.
-                Exception: Пробрасываемые ошибки клиента Gemini.
+
+            Exception:
+                Propagated Gemini client errors.
+                Пробрасываемые ошибки клиента Gemini.
         """
 
         # Step 1: Build snippets from slide findings
@@ -332,32 +378,43 @@ class AskGemini:
         Улучшить сырую транскрипцию с помощью Gemini.
 
         Pipeline:
-            1. Ensure client is initialized.
-            2. Validate provided text.
-            3. Build request with language instructions.
-            4. Call Gemini and retrieve refined text.
 
-        Pipeline:
-            1. Убедиться, что клиент инициализирован.
-            2. Проверить предоставленный текст.
-            3. Собрать запрос с инструкциями по языку.
-            4. Вызвать Gemini и получить улучшенный текст.
+            1. Ensure client is initialized.
+               Убедиться, что клиент инициализирован.
+
+            2. Validate provided text.
+               Проверить предоставленный текст.
+
+            3. Build request with language instructions.
+               Собрать запрос с инструкциями по языку.
+
+            4. Call Gemini and retrieve refined text.
+               Вызвать Gemini и получить улучшенный текст.
 
         Args:
-            transcribed_text (str): Raw text to polish.
+
+            transcribed_text (str):
+                Raw text to polish.
                 Исходный текст для улучшения.
+
             language (SupportedLanguagesCodesEnum): Language of transcription.
                 Язык транскрипции.
 
         Returns:
-            str: Text with improved formatting.
+
+            str:
+                Text with improved formatting.
                 Текст с улучшенным форматированием.
 
         Raises:
-            ValueError: Missing API key or empty text.
-                ValueError: Отсутствует API ключ или пустой текст.
-            Exception: Propagated Gemini client errors.
-                Exception: Пробрасываемые ошибки клиента Gemini.
+
+            ValueError:
+                Missing API key or empty text.
+                Отсутствует API ключ или пустой текст.
+
+            Exception:
+                Propagated Gemini client errors.
+                Пробрасываемые ошибки клиента Gemini.
         """
 
         # Step 1: Ensure client exists
@@ -375,11 +432,7 @@ class AskGemini:
         # Step 3: Build prompt parts
         # Шаг 3: Собрать части запроса
         parts = [
-            {
-                "text": PROMPTS[PromptType.REVIEW_SLIDE].replace(
-                    "{'language'}", language
-                )
-            },
+            {"text": PROMPTS[PromptType.REVIEW_SLIDE].replace("{'language'}", language)},
             {"text": transcribed_text},
         ]
 
