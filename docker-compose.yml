@@ -2,7 +2,7 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: ./frontend
+      context: ./app/frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
@@ -11,7 +11,7 @@ services:
 
   server:
     build:
-      context: ./server
+      context: ./app/server
       dockerfile: Dockerfile
     ports:
       - "5000:5000"
@@ -19,6 +19,22 @@ services:
       - .env
     volumes:
       - server_data:/app/data
+
+  nginx:
+    build: ./app/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - server
+    volumes:
+      - ./app/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./app/nginx/certs:/etc/nginx/certs:ro
+    environment:
+      - NGINX_HOST=jgsnapp.ru
+      - NGINX_PORT=80
+      - NGINX_SSL_PORT=443
 
 volumes:
   server_data:

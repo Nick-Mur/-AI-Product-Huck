@@ -28,7 +28,9 @@ ENV HTTPS=true \
     SSL_KEY_FILE=/certs/server.key \
     HOST=0.0.0.0 \
     PORT=3000 \
-    BROWSER=none
+    BROWSER=none \
+    DANGEROUSLY_DISABLE_HOST_CHECK=true \
+    NODE_OPTIONS=--max-old-space-size=512
 
 EXPOSE 3000
 

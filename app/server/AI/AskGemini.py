@@ -3,12 +3,12 @@ from typing import List, Dict, Any, Optional
 
 from google import genai
 
-from app.server.utilities.consts import (
+from utilities.consts import (
     GOOGLE_API_KEY,
     GeminiModelsEnum,
     SupportedLanguagesCodesEnum,
 )
-from app.server.utilities.prompts import PROMPTS, PromptType
+from utilities.prompts import PROMPTS, PromptType
 
 
 class AskGemini:

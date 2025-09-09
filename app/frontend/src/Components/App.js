@@ -461,7 +461,7 @@ function App() {
 
   return (
     <div className="app">
-      <h2 className="title">Слайды из PDF/PPTX</h2>
+      <h2 className="title">Питч-философ</h2>
 
       {view === 'upload' && (
         <div style={{ textAlign: 'center' }}>
@@ -492,8 +492,8 @@ function App() {
       {view === 'ready' && (
         <div style={{ textAlign: 'center' }}>
           <p className="muted">Файл загружен. Слайдов: {slides.length}</p>
-          <div className="row" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <label className="badge" style={{ alignSelf: 'flex-start' }}>Дополнительная информация по презентации</label>
+          <div className="row" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', maxWidth: 720, margin: '0 auto' }}>
+            <label className="badge" style={{ marginBottom: 6 }}>Дополнительная информация по презентации</label>
             <textarea
               className="file-input"
               style={{ width: '100%', maxWidth: 720, minHeight: 90 }}

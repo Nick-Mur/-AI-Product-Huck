@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pdf2image import convert_from_path
 
 from AI.AudioToText import AudioToText
-from utilities.consts import SupportedLanguagesCodesEnum, WhisperModelsENUM, GeminiModelsEnum, ANALIZE_PDF
+from utilities.consts import SupportedLanguagesCodesEnum, WhisperModelsENUM, GeminiModelsEnum, ANALIZE_PDF, DISABLE_TRANSCRIPTION
 from AI.AskGemini import AskGemini
 import json
 
@@ -195,10 +195,11 @@ async def upload_audio(
                 "-y",
                 "-i",
                 str(raw_path),
-                "-codec:a",
-                "libmp3lame",
-                "-b:a",
-                "128k",
+                # downmix + downsample to reduce size and RAM for Whisper
+                "-ac", "1",
+                "-ar", "16000",
+                "-codec:a", "libmp3lame",
+                "-b:a", "64k",
                 str(mp3_path),
             ],
             check=True,
@@ -209,28 +210,29 @@ async def upload_audio(
         # If conversion fails, still expose the raw format like before
         return {"ok": True, "path": f"/images/{sessionId}/audio/{raw_path.name}", "format": safe_ext.lstrip('.')}
 
-    # Only if MP3 conversion succeeded, attempt transcription & enhancement
+    # Only if MP3 conversion succeeded, optionally attempt transcription
     transcript_json = audio_dir / f"slide-{int(slideIndex)}.json"
-    try:
-        at = AudioToText(
-            audio_file_path=str(mp3_path),
-            language=SupportedLanguagesCodesEnum.RU,
-            whisper_model=WhisperModelsENUM.TINY,
-            gemini_model=GeminiModelsEnum.gemini_2_5_flash,
-        )
-        raw_text = at.transcribe_file()
-        polished_text = at.restore_transcribed_text_with_gemini()
-        payload = {
-            "raw": raw_text,
-            "polished": polished_text,
-            "lang": str(SupportedLanguagesCodesEnum.RU),
-        }
-        import json
-        with open(transcript_json, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-    except Exception:
-        # Do not fail the audio upload on transcription error
-        pass
+    if not DISABLE_TRANSCRIPTION:
+        try:
+            at = AudioToText(
+                audio_file_path=str(mp3_path),
+                language=SupportedLanguagesCodesEnum.RU,
+                whisper_model=WhisperModelsENUM.TINY,
+                gemini_model=GeminiModelsEnum.gemini_2_5_flash,
+            )
+            raw_text = at.transcribe_file()
+            polished_text = at.restore_transcribed_text_with_gemini()
+            payload = {
+                "raw": raw_text,
+                "polished": polished_text,
+                "lang": str(SupportedLanguagesCodesEnum.RU),
+            }
+            import json
+            with open(transcript_json, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        except Exception:
+            # Do not fail the audio upload on transcription error
+            pass
 
     return {"ok": True, "path": f"/images/{sessionId}/audio/{mp3_path.name}", "format": "mp3"}
 
@@ -318,6 +320,8 @@ def _load_transcript(session_id: str, slide_index: int) -> str:
     if not audio_path:
         raise HTTPException(status_code=404, detail="Аудио для транскрибации не найдено")
 
+    if DISABLE_TRANSCRIPTION:
+        return ""
     at = AudioToText(
         audio_file_path=str(audio_path),
         language=SupportedLanguagesCodesEnum.RU,
@@ -457,6 +461,8 @@ async def get_transcript(sessionId: str, slideIndex: int):
     if not audio_path or not audio_path.exists():
         raise HTTPException(status_code=404, detail="Аудио для этого слайда не найдено")
 
+    if DISABLE_TRANSCRIPTION:
+        raise HTTPException(status_code=404, detail="Транскрибация отключена на сервере")
     try:
         at = AudioToText(
             audio_file_path=str(audio_path),

@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Питч-философ",
+  "name": "Питч-философ: AI-помощник для улучшения питчей и презентаций",
   "icons": [
     {
       "src": "favicon.ico",

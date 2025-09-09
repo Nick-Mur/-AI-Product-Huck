@@ -5,13 +5,13 @@
 
 import whisper
 import warnings
-from app.server.utilities.consts import (
+from utilities.consts import (
     WhisperModelsENUM,
     SupportedLanguagesCodesEnum,
     SupportedExtensionsEnum,
     GeminiModelsEnum,
 )
-from AskGemini import AskGemini
+from AI.AskGemini import AskGemini
 
 
 class AudioToText:

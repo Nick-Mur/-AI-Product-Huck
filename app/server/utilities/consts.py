@@ -34,3 +34,6 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # If true, attach the source PDF to Gemini at review start
 ANALIZE_PDF = (os.getenv("AnalizePDF", "false").strip().lower() in {"1", "true", "yes", "y"})
+
+# If true, do NOT run Whisper transcription (helps on low‑RAM hosts)
+DISABLE_TRANSCRIPTION = (os.getenv("DISABLE_TRANSCRIPTION", "false").strip().lower() in {"1", "true", "yes", "y"})
