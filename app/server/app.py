@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pdf2image import convert_from_path
 
 from AI.AudioToText import AudioToText
-from utilities.consts import SupportedLanguagesCodesEnum, WhisperModelsENUM, GeminiModelsEnum, ANALIZE_PDF
+from utilities.consts import SupportedLanguagesCodesEnum, WhisperModelsENUM, GeminiModelsEnum, ANALIZE_PDF, DISABLE_TRANSCRIPTION, DEV_MODE
 from AI.AskGemini import AskGemini
 import json
 
@@ -141,7 +141,16 @@ async def upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Ошибка конвертации: {e}")
 
     # Build URLs
-    slides = sorted([p.name for p in output_dir.glob("slide-*.png")])
+    # Ensure natural numeric order: slide-1.png, slide-2.png, ... slide-10.png
+    def _num_key(name: str) -> int:
+        try:
+            base = name.rsplit("/", 1)[-1]
+            part = base.split("-")[-1]
+            num = part.split(".")[0]
+            return int(num)
+        except Exception:
+            return 0
+    slides = sorted([p.name for p in output_dir.glob("slide-*.png")], key=_num_key)
     slide_urls = [f"/images/{session_id}/slides/{name}" for name in slides]
 
     return JSONResponse(
@@ -157,7 +166,7 @@ async def list_slides(session_id: str):
     output_dir = DATA_DIR / session_id / "slides"
     if not output_dir.exists():
         raise HTTPException(status_code=404, detail="Сессия не найдена")
-    slides = sorted([p.name for p in output_dir.glob("slide-*.png")])
+    slides = sorted([p.name for p in output_dir.glob("slide-*.png")], key=lambda n: int(n.split("-")[-1].split(".")[0]))
     slide_urls = [f"/images/{session_id}/slides/{name}" for name in slides]
     return {"sessionId": session_id, "slides": slide_urls}
 
@@ -195,10 +204,11 @@ async def upload_audio(
                 "-y",
                 "-i",
                 str(raw_path),
-                "-codec:a",
-                "libmp3lame",
-                "-b:a",
-                "128k",
+                # downmix + downsample to reduce size and RAM for Whisper
+                "-ac", "1",
+                "-ar", "16000",
+                "-codec:a", "libmp3lame",
+                "-b:a", "64k",
                 str(mp3_path),
             ],
             check=True,
@@ -209,28 +219,29 @@ async def upload_audio(
         # If conversion fails, still expose the raw format like before
         return {"ok": True, "path": f"/images/{sessionId}/audio/{raw_path.name}", "format": safe_ext.lstrip('.')}
 
-    # Only if MP3 conversion succeeded, attempt transcription & enhancement
+    # Only if MP3 conversion succeeded, optionally attempt transcription
     transcript_json = audio_dir / f"slide-{int(slideIndex)}.json"
-    try:
-        at = AudioToText(
-            audio_file_path=str(mp3_path),
-            language=SupportedLanguagesCodesEnum.RU,
-            whisper_model=WhisperModelsENUM.TINY,
-            gemini_model=GeminiModelsEnum.gemini_2_5_flash,
-        )
-        raw_text = at.transcribe_file()
-        polished_text = at.restore_transcribed_text_with_gemini()
-        payload = {
-            "raw": raw_text,
-            "polished": polished_text,
-            "lang": str(SupportedLanguagesCodesEnum.RU),
-        }
-        import json
-        with open(transcript_json, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-    except Exception:
-        # Do not fail the audio upload on transcription error
-        pass
+    if not DISABLE_TRANSCRIPTION:
+        try:
+            at = AudioToText(
+                audio_file_path=str(mp3_path),
+                language=SupportedLanguagesCodesEnum.RU,
+                whisper_model=WhisperModelsENUM.TINY,
+                gemini_model=GeminiModelsEnum.gemini_2_5_flash,
+            )
+            raw_text = at.transcribe_file()
+            polished_text = at.restore_transcribed_text_with_gemini()
+            payload = {
+                "raw": raw_text,
+                "polished": polished_text,
+                "lang": str(SupportedLanguagesCodesEnum.RU),
+            }
+            import json
+            with open(transcript_json, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        except Exception:
+            # Do not fail the audio upload on transcription error
+            pass
 
     return {"ok": True, "path": f"/images/{sessionId}/audio/{mp3_path.name}", "format": "mp3"}
 
@@ -247,20 +258,29 @@ def _review_dir(session_id: str) -> Path:
 async def review_start(
     sessionId: str = Form(...),
     mode: str = Form("per-slide"),
-    extraInfo: str = Form("")
+    extraInfo: str = Form(""),
+    includePdf: str = Form("false"),
 ):
     session_dir = DATA_DIR / sessionId
     if not session_dir.exists():
         raise HTTPException(status_code=404, detail="Сессия не найдена")
 
     review_dir = _review_dir(sessionId)
+    def _to_bool(s: str) -> bool:
+        try:
+            return str(s or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        except Exception:
+            return False
+
+    include_pdf = _to_bool(includePdf)
     cfg = {
         "mode": mode,
         "extraInfo": extraInfo or "",
+        "includePdf": include_pdf,
     }
 
     # Optionally upload session PDF to Gemini and persist a reference
-    if ANALIZE_PDF:
+    if include_pdf:
         try:
             # try to find a PDF in upload subdir
             upload_dir = session_dir / "upload"
@@ -300,7 +320,11 @@ def _load_transcript(session_id: str, slide_index: int) -> str:
         try:
             with open(tpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return (data.get("polished") or data.get("raw") or "").strip()
+            text = (data.get("polished") or data.get("raw") or "").strip()
+            # If previous bug saved JSON feedback into polished, fall back to raw
+            if isinstance(text, str) and text.startswith("{") and ("feedback" in text and "tips" in text):
+                text = (data.get("raw") or "").strip()
+            return text
         except Exception:
             pass
     # On-demand transcribe if JSON absent or broken. Wait a bit for audio to appear.
@@ -318,6 +342,8 @@ def _load_transcript(session_id: str, slide_index: int) -> str:
     if not audio_path:
         raise HTTPException(status_code=404, detail="Аудио для транскрибации не найдено")
 
+    if DISABLE_TRANSCRIPTION:
+        return ""
     at = AudioToText(
         audio_file_path=str(audio_path),
         language=SupportedLanguagesCodesEnum.RU,
@@ -446,9 +472,15 @@ async def get_transcript(sessionId: str, slideIndex: int):
         try:
             with open(transcript_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            # Sanitize legacy records where polished accidentally contains JSON feedback
+            polished = (data.get("polished") or "").strip() if isinstance(data.get("polished"), str) else ""
+            if polished.startswith("{") and ("feedback" in polished and "tips" in polished):
+                data["polished"] = ""
+            # Add dev flag so client can decide how to render
+            data["devMode"] = DEV_MODE
+            return data
         except Exception:
             raise HTTPException(status_code=500, detail="Не удалось прочитать транскрипт")
-        return data
 
     # Optional: if JSON is absent but audio exists, try to transcribe on-demand
     mp3_path = audio_dir / f"slide-{int(slideIndex)}.mp3"
@@ -457,6 +489,8 @@ async def get_transcript(sessionId: str, slideIndex: int):
     if not audio_path or not audio_path.exists():
         raise HTTPException(status_code=404, detail="Аудио для этого слайда не найдено")
 
+    if DISABLE_TRANSCRIPTION:
+        raise HTTPException(status_code=404, detail="Транскрибация отключена на сервере")
     try:
         at = AudioToText(
             audio_file_path=str(audio_path),
@@ -470,6 +504,7 @@ async def get_transcript(sessionId: str, slideIndex: int):
             "raw": raw_text,
             "polished": polished_text,
             "lang": str(SupportedLanguagesCodesEnum.RU),
+            "devMode": DEV_MODE,
         }
         import json
         with open(transcript_json, "w", encoding="utf-8") as f:

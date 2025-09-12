@@ -165,3 +165,30 @@ html, body {
 }
 .card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
 .muted { color: var(--muted); }
+
+/* Tips layout */
+.tips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tip-card-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.card-positive { border-color: #86efac; background: #f0fdf4; }
+.card-negative { border-color: #fecaca; background: #fef2f2; }
+
+/* Prompt buttons grid */
+.prompt-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* File chooser */
+.file-chooser { display: flex; align-items: center; gap: 10px; justify-content: center; }
+.file-name { font-size: 12px; color: var(--muted); }
+
+/* Scores */
+.scores { display: flex; flex-direction: column; gap: 6px; }
+.score-row { display: flex; align-items: center; gap: 8px; }
+.score-label { width: 170px; font-size: 13px; color: var(--muted); text-align: right; }
+.score-bar { flex: 1; height: 10px; background: #f3f4f6; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.score-fill { height: 100%; border-radius: 6px; transition: width 200ms ease; }

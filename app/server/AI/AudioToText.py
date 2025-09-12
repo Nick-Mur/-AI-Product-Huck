@@ -5,13 +5,13 @@
 
 import whisper
 import warnings
-from app.server.utilities.consts import (
+from utilities.consts import (
     WhisperModelsENUM,
     SupportedLanguagesCodesEnum,
     SupportedExtensionsEnum,
     GeminiModelsEnum,
 )
-from AskGemini import AskGemini
+from AI.AskGemini import AskGemini
 
 
 class AudioToText:
@@ -20,7 +20,7 @@ class AudioToText:
         audio_file_content=None,
         audio_file_path=None,
         language=SupportedLanguagesCodesEnum.RU,
-        whisper_model=WhisperModelsENUM.TINY,
+        whisper_model=WhisperModelsENUM.LARGE,
         gemini_model=GeminiModelsEnum.gemini_2_5_flash,
     ):
         """Configure audio transcription parameters.
